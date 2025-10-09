@@ -1,35 +1,27 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 
-from pydantic import BaseModel
-
-import requests
-
-PRIVATE_KEY = "8c63dbce-80a7-455a-890b-9368d16e1dcb" 
-
 app = FastAPI()
+
 app.add_middleware(
     CORSMiddleware,
-    allow_orgins=["*"],
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-PRIVATE_KEY = "....."
+connections = {}
 
-class User(BaseModel):
-    username: str
-
-@app.post('/authenticate')
-async def authenticate(user: User):
-    resopnse = requests.put('https://api.chatengine.io/users/',
-                            data = {
-                                "username": user.username,
-                                "secret": user.username,
-                                "first_name": user.username,
-                            },
-                            headers={ "Private-Key": PRIVATE_KEY }
-                        )
-    return response.json()
-
+@app.websocket("/ws/{username}")
+async def websocket_endpoint(websocket: WebSocket, username: str):
+    await websocket.accept()
+    connections[username] = websocket
+    try:
+        while True:
+            data = await websocket.receive_text()
+            for user, conn in connections.items():
+                if user != username:
+                    await conn.send_text(f"{username}: {data}")
+    except WebSocketDisconnect:
+        del connections[username]
