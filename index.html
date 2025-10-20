@@ -1,13 +1,237 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Vite + React</title>
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.jsx"></script>
-  </body>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Realtime Chat App</title>
+  <script src="https://cdn.socket.io/4.6.1/socket.io.min.js"></script>
+  <style>
+    /* 🌈 Gradient Chat App Theme */
+    :root {
+      --gradient-bg: linear-gradient(135deg, #43cea2, #185a9d);
+      --secondary-bg: #ffffff1a;
+      --text-color: #fff;
+      --bubble-user: #185a9d;
+      --bubble-other: #43cea2;
+    }
+
+    body {
+      margin: 0;
+      font-family: "Poppins", sans-serif;
+      background: var(--gradient-bg);
+      color: var(--text-color);
+      height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    /* Login Screen */
+    #login-screen {
+      background: rgba(255, 255, 255, 0.15);
+      backdrop-filter: blur(10px);
+      border-radius: 15px;
+      padding: 40px 50px;
+      text-align: center;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+      animation: fadeIn 0.5s ease;
+    }
+
+    #login-screen h1 {
+      margin-bottom: 20px;
+    }
+
+    #username-input {
+      padding: 12px;
+      width: 250px;
+      border: none;
+      border-radius: 8px;
+      font-size: 16px;
+      outline: none;
+    }
+
+    #login-btn {
+      background: #fff;
+      color: #185a9d;
+      border: none;
+      padding: 12px 25px;
+      margin-top: 15px;
+      border-radius: 8px;
+      font-weight: bold;
+      cursor: pointer;
+      transition: 0.3s;
+    }
+
+    #login-btn:hover {
+      transform: scale(1.05);
+    }
+
+    /* Chat Screen */
+    #chat-screen {
+      display: none;
+      width: 90%;
+      max-width: 600px;
+      height: 85vh;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 15px;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      backdrop-filter: blur(10px);
+      box-shadow: 0 4px 30px rgba(0, 0, 0, 0.25);
+      animation: fadeIn 0.5s ease;
+    }
+
+    #chat-header {
+      background: rgba(255, 255, 255, 0.15);
+      padding: 15px;
+      font-size: 18px;
+      font-weight: bold;
+      text-align: center;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+    }
+
+    #messages {
+      flex: 1;
+      padding: 20px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .msg {
+      padding: 10px 15px;
+      border-radius: 15px;
+      max-width: 75%;
+      word-wrap: break-word;
+      animation: slideIn 0.3s ease;
+    }
+
+    .self {
+      align-self: flex-end;
+      background: var(--bubble-user);
+    }
+
+    .other {
+      align-self: flex-start;
+      background: var(--bubble-other);
+    }
+
+    #input-area {
+      display: flex;
+      border-top: 1px solid rgba(255, 255, 255, 0.2);
+      background: rgba(255, 255, 255, 0.1);
+      padding: 10px;
+    }
+
+    #message {
+      flex: 1;
+      border: none;
+      border-radius: 8px;
+      padding: 12px;
+      font-size: 16px;
+      outline: none;
+      background: #ffffffd0;
+      color: #000;
+    }
+
+    #send-btn {
+      background: #185a9d;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      padding: 12px 20px;
+      margin-left: 10px;
+      font-weight: bold;
+      cursor: pointer;
+      transition: 0.3s;
+    }
+
+    #send-btn:hover {
+      background: #43cea2;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: scale(0.95); }
+      to { opacity: 1; transform: scale(1); }
+    }
+
+    @keyframes slideIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Login Screen -->
+  <div id="login-screen">
+    <h1>Welcome to ChatApp 💬</h1>
+    <input type="text" id="username-input" placeholder="Enter username">
+    <br>
+    <button id="login-btn" onclick="setUsername()">Join Chat</button>
+  </div>
+
+  <!-- Chat Screen -->
+  <div id="chat-screen">
+    <div id="chat-header">
+      <span id="welcome">👋 Welcome</span>
+    </div>
+    <div id="messages"></div>
+    <div id="input-area">
+      <input type="text" id="message" placeholder="Type a message..." onkeypress="handleKeyPress(event)">
+      <button id="send-btn" onclick="sendMessage()">Send</button>
+    </div>
+  </div>
+
+  <script>
+    let socket;
+    let username = "";
+
+    function setUsername() {
+      username = document.getElementById("username-input").value.trim();
+      if (!username) {
+        alert("Please enter a username!");
+        return;
+      }
+
+      // Hide login screen, show chat
+      document.getElementById("login-screen").style.display = "none";
+      document.getElementById("chat-screen").style.display = "flex";
+      document.getElementById("welcome").innerText = `👋 Welcome, ${username}`;
+
+      // Connect to the socket
+      socket = io();
+
+      socket.on("connect", () => {
+        socket.emit("set_username", { username: username });
+      });
+
+      // Handle incoming messages
+      socket.on("message", (data) => {
+        const msgBox = document.getElementById("messages");
+        const isSelf = data.username === username;
+        const bubbleClass = isSelf ? "self" : "other";
+        msgBox.innerHTML += `<div class="msg ${bubbleClass}"><strong>${data.username}</strong><br>${data.msg}</div>`;
+        msgBox.scrollTop = msgBox.scrollHeight;
+      });
+    }
+
+    function sendMessage() {
+      const input = document.getElementById("message");
+      const msg = input.value.trim();
+      if (!msg) return;
+
+      socket.emit("message", { msg: msg });
+      input.value = "";
+    }
+
+    function handleKeyPress(event) {
+      if (event.key === "Enter") {
+        sendMessage();
+      }
+    }
+  </script>
+</body>
 </html>
