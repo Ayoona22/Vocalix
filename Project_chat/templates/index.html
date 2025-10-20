@@ -1,46 +1,104 @@
-
 <!DOCTYPE html>
 <html lang="en">
-	<head>
-		<meta charset="UTF-8" />
-		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-		<title>Advanced Real-Time Chat</title>
-		<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
-		<link
-			rel="stylesheet"
-			href="{{ url_for('static', filename='styles.css') }}"
-		/>
-	</head>
-	<body>
-		<h2>Welcome, <span id="username">{{ username }}</span>!</h2>
-		<div class="container">
-			<div class="sidebar">
-				<div class="room-list">
-					<h3>Rooms</h3>
-					{% for room in rooms %}
-					<div class="room-item" onclick="joinRoom('{{ room }}')">
-						{{ room }}
-					</div>
-					{% endfor %}
-				</div>
-				<div class="user-list">
-					<h3>Online Users</h3>
-					<div id="active-users"></div>
-				</div>
-			</div>
-			<div class="main-chat">
-				<div id="chat"></div>
-				<div class="input-area">
-					<input
-						id="message"
-						type="text"
-						placeholder="Type a message..."
-						onkeypress="handleKeyPress(event)"
-					/>
-					<button onclick="sendMessage()">Send</button>
-				</div>
-			</div>
-		</div>
-		<script src="{{ url_for('static', filename='chat.js') }}"></script>
-	</body>
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Advanced Real-Time Chat</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}" />
+</head>
+<body>
+    <h2>Welcome, <span id="username">{{ username }}</span>!</h2>
+    
+    <div class="container">
+        <div class="sidebar">
+            <div class="room-list">
+                <h3>Rooms</h3>
+                {% for room in rooms %}
+                <div class="room-item" onclick="joinRoom('{{ room }}')">
+                    {{ room }}
+                </div>
+                {% endfor %}
+            </div>
+            <div class="user-list">
+                <h3>Online Users</h3>
+                <div id="active-users"></div>
+            </div>
+        </div>
+
+        <div class="main-chat">
+            <div id="chat"></div>
+            <div class="input-area">
+                <input
+                    id="message"
+                    type="text"
+                    placeholder="Type a message..."
+                    onkeypress="handleKeyPress(event)"
+                />
+                <button onclick="sendMessage()">Send</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Pass ngrok URL dynamically from Flask -->
+    <script>
+        const NGROK_URL = "{{ ngrok_url[:-1] }}"; // remove trailing slash
+    </script>
+    
+    <!-- Chat logic -->
+    <script>
+        var socket = io(NGROK_URL, { transports: ['websocket'] });
+        var currentRoom = 'General';
+        
+        // Join default room
+        socket.emit('join', { room: currentRoom });
+
+        // Send message
+        function sendMessage() {
+            var msgInput = document.getElementById('message');
+            var msg = msgInput.value.trim();
+            if (!msg) return;
+            socket.emit('message', { msg: msg, room: currentRoom, type: 'message' });
+            msgInput.value = '';
+        }
+
+        // Handle Enter key
+        function handleKeyPress(event) {
+            if (event.key === 'Enter') sendMessage();
+        }
+
+        // Join a different room
+        function joinRoom(room) {
+            if (room === currentRoom) return;
+            socket.emit('leave', { room: currentRoom });
+            currentRoom = room;
+            socket.emit('join', { room: currentRoom });
+            document.getElementById('chat').innerHTML = '';
+        }
+
+        // Display messages
+        socket.on('message', function(data) {
+            if (data.room !== currentRoom) return;
+            var chat = document.getElementById('chat');
+            chat.innerHTML += `<div><strong>${data.username}:</strong> ${data.msg}</div>`;
+            chat.scrollTop = chat.scrollHeight;
+        });
+
+        // Display status (join/leave)
+        socket.on('status', function(data) {
+            var chat = document.getElementById('chat');
+            chat.innerHTML += `<div style="color:gray;"><em>${data.msg}</em></div>`;
+            chat.scrollTop = chat.scrollHeight;
+        });
+
+        // Update online users
+        socket.on('active_users', function(data) {
+            var userList = document.getElementById('active-users');
+            userList.innerHTML = '';
+            data.users.forEach(function(user) {
+                userList.innerHTML += `<div>${user}</div>`;
+            });
+        });
+    </script>
+</body>
 </html>
