@@ -1,0 +1,7 @@
+{
+  "name": "Vocalix",
+  "description": "A next-generation messaging platform featuring voice identity verification and AI-personalized messaging.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
